@@ -1,0 +1,5 @@
+package com.afterglow.player;
+import java.util.*;
+public class PlaylistParser {
+ public static List<String[]> parse(String text,boolean csv){List<String[]> result=new ArrayList<>();text=text.replaceFirst("^\\uFEFF","");if(!csv){for(String line:text.split("\\r?\\n"))if(!line.trim().isEmpty())result.add(new String[]{line.trim()});return result;}List<String> row=new ArrayList<>();StringBuilder field=new StringBuilder();boolean quoted=false;for(int i=0;i<text.length();i++){char c=text.charAt(i);if(c=='"'){if(quoted&&i+1<text.length()&&text.charAt(i+1)=='"'){field.append('"');i++;}else quoted=!quoted;}else if(c==','&&!quoted){row.add(field.toString().trim());field.setLength(0);}else if((c=='\n'||c=='\r')&&!quoted){if(c=='\r'&&i+1<text.length()&&text.charAt(i+1)=='\n')i++;row.add(field.toString().trim());if(row.stream().anyMatch(s->!s.isEmpty()))result.add(row.toArray(new String[0]));row.clear();field.setLength(0);}else field.append(c);}if(quoted)throw new IllegalArgumentException("CSV has an unclosed quote");row.add(field.toString().trim());if(row.stream().anyMatch(s->!s.isEmpty()))result.add(row.toArray(new String[0]));return result;}
+}

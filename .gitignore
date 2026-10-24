@@ -1,0 +1,14 @@
+# Local credentials and machine-specific state
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.pem
+*.key
+**/.openai/
+# Generated archives and dependency caches
+/afterglow.tar.gz
+**/node_modules/
+**/__pycache__/
+*.pyc

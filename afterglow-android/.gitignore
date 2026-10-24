@@ -1,0 +1,6 @@
+build/
+.local/
+assets/demo.wav
+.deps/
+assets/yt-dlp
+native/
