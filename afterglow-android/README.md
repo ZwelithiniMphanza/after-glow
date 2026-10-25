@@ -62,5 +62,11 @@ The server is a hidden local process; restart with `../stem-server/start-server.
 
 ## Test-data issue
 
-VisualChecks left its sample library on the connected phone despite reporting a pass. The original list has not been recovered. Do not run fixture-based checks on personal data without a durable backup. See the [root README](../README.md) for current status.
+VisualChecks left its sample library on the connected phone despite reporting a pass. The library was subsequently restored from the supplied CSV. Do not run fixture-based checks on personal data without a durable backup. See the [root README](../README.md) for current status.
 
+
+Playback update: EQ now includes 0–12 dB boost with limiting; Previous restarts or returns through playback history within five seconds; finished tracks can resume via the seeker; Repeat updates in place; queue handles support drag reordering; crossfades use native equal-power VolumeShaper envelopes. See the root README for behavior.
+
+Verified on Infinix X663 on 2026-10-25: PlaybackChecks passed boost DSP gain, in-place Repeat updates, seeking after completion, previous/restart behavior, queue ordering, native crossfade overlap, and continued playback at handoff. Queue ordering was tested programmatically; drag gestures and audible transition quality still need user evaluation. The 438-entry library was compared exactly with its pre-test snapshot after restoration.
+
+Queue sheet update: compact artwork/title/artist rows in a bottom-aligned panel. Drag the three-line handle on the right directly to reorder; neighbouring rows animate and the list scrolls near its edges. Order commits on release; cancelling preserves it. Hold a song row to remove it. QueueSheetChecks verifies drag preview, commit, and cancellation with preference backup/restore.
