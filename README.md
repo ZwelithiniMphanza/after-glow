@@ -1,5 +1,42 @@
 # Afterglow
 
+
+## Version 0.5.1 — queue editing
+
+Removing a queued song now leaves its slot empty. Reordering, shuffling, and library edits do not automatically pull another song from the playlist backlog. Playback advancement still prepares the next portion of a long playlist.
+
+**Clear queue** in the queue sheet clears both upcoming songs and the deferred playlist backlog, cancels preparation for removed queue items, and releases the prepared next player. It keeps the current song playing and preserves the library, favourites, playlists and cached audio. Repeat-all turns off so the cleared queue cannot rebuild itself; repeat-one is unchanged.
+
+
+## Version 0.5 — library collections and normal transitions
+
+- **Favourites:** use a song's menu to add/remove a favourite, then open the Favourites filter.
+- **Sort:** added/playlist order, title A–Z or Z–A, artist A–Z, or shuffled order. Sorting changes the visible list without changing the currently playing song.
+- **Play list / Shuffle play:** play the current library, favourite, playlist, or search-filtered view. Only the next ten songs enter the download queue; longer lists refill it as playback advances. Queue also has a Shuffle queue action.
+- **Playlists:** create named playlists, select songs from the library, add individual songs from their menu, rename, edit membership, play/shuffle, or delete a playlist. Deleting a playlist keeps its songs and audio. Stable track IDs retain membership when online titles resolve to audio URLs.
+- **Repeat:** tap to cycle Off → All → One → Off. All cycles the current playback queue/list, including the currently playing song; One loops only the current song.
+- **Transitions:** crossfade/gapless overlap is removed. The outgoing song fades over its final three seconds (shorter for short songs); the next song starts after completion at normal volume. Downloads that are not ready can still cause a wait.
+- Favourites, playlists, repeat mode, sorting and pending playback order are saved on the phone.
+
+Install over an existing copy to retain app data. Uninstalling removes private settings, cached audio and encrypted keys. A previously backed-up library can be restored, but the search API key must be entered again after uninstalling.
+
+Earlier version notes below describe previous implementations and test history.
+
+
+## Version 0.5 — library collections and normal transitions
+
+- **Favourites:** use a song's menu to add/remove a favourite, then open the Favourites filter.
+- **Sort:** added/playlist order, title A–Z or Z–A, artist A–Z, or shuffled order. Sorting changes the visible list without changing the currently playing song.
+- **Play list / Shuffle play:** play the current library, favourite, playlist, or search-filtered view. Only the next ten songs enter the download queue; longer lists refill it as playback advances. Queue also has a Shuffle queue action.
+- **Playlists:** create named playlists, select songs from the library, add individual songs from their menu, rename, edit membership, play/shuffle, or delete a playlist. Deleting a playlist keeps its songs and audio. Stable track IDs retain membership when online titles resolve to audio URLs.
+- **Repeat:** tap to cycle Off → All → One → Off. All cycles the current playback queue/list, including the currently playing song; One loops only the current song.
+- **Transitions:** crossfade/gapless overlap is removed. The outgoing song fades over its final three seconds (shorter for short songs); the next song starts after completion at normal volume. Downloads that are not ready can still cause a wait.
+- Favourites, playlists, repeat mode, sorting and pending playback order are saved on the phone.
+
+Install over an existing copy to retain app data. Uninstalling removes private settings, cached audio and encrypted keys. A previously exported/backed-up library can be restored, but the search API key must be entered again after uninstalling.
+
+Earlier version notes below describe the previous implementations and test history.
+
 An Android music player combining a Spotify-inspired interface with classic animated music visualizations. The app uses native Android screens and audio playback, with no Afterglow account or sign-in required.
 
 The current app is in **[`afterglow-android/`](afterglow-android/README.md)**. The `afterglow/` directory contains the earlier web prototype; it is not required to run the Android app.
