@@ -15,6 +15,7 @@ Run-Tool 'jar' @('uf','build/test/base.apk','-C','build/test/dex','classes.dex')
 Run-Tool "$bt/zipalign.exe" @('-f','4','build/test/base.apk','build/test/aligned.apk')
 Run-Tool "$bt/apksigner.bat" @('sign','--ks','.local/debug.keystore','--ks-pass','pass:android','--out','build/test/test.apk','build/test/aligned.apk')
 Run-Tool 'adb' @('-s','083172524K003610','install','-r','build/test/test.apk')
+Run-Tool 'adb' @('-s','083172524K003610','shell','run-as','com.afterglow.player','mkdir','-p','files')
 # Durable backup stays on the device if the host or USB connection is interrupted.
 Run-Tool 'adb' @('-s','083172524K003610','shell','am','force-stop','com.afterglow.player')
 Run-Tool 'adb' @('-s','083172524K003610','shell','run-as','com.afterglow.player','sh','-c',"'test ! -e files/pre-test-player.xml && cp shared_prefs/player.xml files/pre-test-player.xml'")

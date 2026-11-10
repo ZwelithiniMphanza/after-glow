@@ -1,0 +1,16 @@
+package com.afterglow.player;
+import android.app.*;import android.content.*;import android.os.*;import android.view.*;import android.widget.*;
+public class PlaybackChecks extends Instrumentation { String phase="start";
+ public void onCreate(Bundle b){super.onCreate(b);start();}
+ interface Condition{boolean ok();} void await(Condition c,int seconds)throws Exception{for(int i=0;i<seconds*10;i++){if(c.ok())return;Thread.sleep(100);}throw new AssertionError("Timed out: "+phase);}
+ void check(boolean b,String s){if(!b)throw new AssertionError(s);}
+ Button find(View v,String label){if(v instanceof Button&&((Button)v).getText().toString().equals(label))return (Button)v;if(v instanceof ViewGroup)for(int i=0;i<((ViewGroup)v).getChildCount();i++){Button b=find(((ViewGroup)v).getChildAt(i),label);if(b!=null)return b;}return null;}
+ public void onStart(){Bundle result=new Bundle();try{MainActivity ui=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));await(()->PlaybackService.instance!=null,10);PlaybackService p=PlaybackService.instance;
+ runOnMainSync(()->{p.pause(true);p.releasePlayer();p.queue.clear();p.upcoming.clear();p.history.clear();p.repeat=false;p.repeatAll=false;p.backlog.clear();p.index=0;for(int i=0;i<3;i++)p.queue.add(new Track("Playback test "+i,"Original demo","demo","local"));p.play(0);});await(()->p.playing(),10);
+ phase="completion";runOnMainSync(()->{p.boost=6;p.applyEQ();check(p.dsp!=null,"DSP available");check(Math.abs(p.dsp.getInputGainByChannelIndex(0)-(p.preamp+6))<.1,"Boost applied");ui.render();View root=ui.root;find(root,"Repeat: off").performClick();check(root==ui.root,"Repeat preserves screen");find(root,"Repeat: all").performClick();find(root,"Repeat: one").performClick();p.seek(p.duration()-250);});await(()->p.ended,5);
+ phase="seek restart";runOnMainSync(()->p.seek(1000));await(()->p.playing()&&p.position()<4000,5);
+ phase="play second";runOnMainSync(()->p.play(1));await(()->p.ready&&p.index==1,10);phase="previous history";runOnMainSync(()->p.previous());await(()->p.ready&&p.index==0,10);
+ phase="restart";runOnMainSync(()->{p.seek(6500);});Thread.sleep(400);runOnMainSync(()->p.previous());await(()->p.position()<2000&&p.playing(),5);
+ phase="crossfade";runOnMainSync(()->{p.enqueue(p.queue.get(1),false);p.enqueue(p.queue.get(2),false);p.moveTrack(p.queue.get(2),0);check(p.upcoming.get(0)==p.queue.get(2),"Queue reorder");p.seek(p.duration()-3500);});await(()->p.fadeOut!=null,8);check(p.fadeIn==null,"Outgoing fade only");Thread.sleep(300);check(p.player.isPlaying()&&!p.nextPlayer.isPlaying(),"No overlap");phase="handoff";await(()->p.index==2,16);check(p.playing(),"Handoff continues");result.putString("result","PASS: boost DSP gain, in-place repeat, seek after completion, previous/restart, queue reorder, outgoing fade without overlap and handoff");
+ }catch(Throwable e){PlaybackService p=PlaybackService.instance;result.putString("failure",e.toString()+" state: position="+p.position()+" duration="+p.duration()+" ready="+p.ready+" playing="+p.playing()+" want="+p.wantPlayback+" nextPrepared="+p.nextPrepared+" repeat="+p.repeat+" error="+p.error);}finish(result.containsKey("failure")?Activity.RESULT_CANCELED:Activity.RESULT_OK,result);}
+}

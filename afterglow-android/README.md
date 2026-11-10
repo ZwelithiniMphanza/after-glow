@@ -1,5 +1,27 @@
 # Afterglow native Android
 
+
+## Version 0.5.1 — queue editing
+
+Removing a queued song now leaves its slot empty. Reordering, shuffling, and library edits do not automatically pull another song from the playlist backlog. Playback advancement still prepares the next portion of a long playlist.
+
+**Clear queue** in the queue sheet clears both upcoming songs and the deferred playlist backlog, cancels preparation for removed queue items, and releases the prepared next player. It keeps the current song playing and preserves the library, favourites, playlists and cached audio. Repeat-all turns off so the cleared queue cannot rebuild itself; repeat-one is unchanged.
+
+
+## Version 0.5 — library collections and normal transitions
+
+- **Favourites:** use a song's menu to add/remove a favourite, then open the Favourites filter.
+- **Sort:** added/playlist order, title A–Z or Z–A, artist A–Z, or shuffled order. Sorting changes the visible list without changing the currently playing song.
+- **Play list / Shuffle play:** play the current library, favourite, playlist, or search-filtered view. Only the next ten songs enter the download queue; longer lists refill it as playback advances. Queue also has a Shuffle queue action.
+- **Playlists:** create named playlists, select songs from the library, add individual songs from their menu, rename, edit membership, play/shuffle, or delete a playlist. Deleting a playlist keeps its songs and audio. Stable track IDs retain membership when online titles resolve to audio URLs.
+- **Repeat:** tap to cycle Off → All → One → Off. All cycles the current playback queue/list, including the currently playing song; One loops only the current song.
+- **Transitions:** crossfade/gapless overlap is removed. The outgoing song fades over its final three seconds (shorter for short songs); the next song starts after completion at normal volume. Downloads that are not ready can still cause a wait.
+- Favourites, playlists, repeat mode, sorting and pending playback order are saved on the phone.
+
+Install over an existing copy to retain app data. Uninstalling removes private settings, cached audio and encrypted keys. A previously backed-up library can be restored, but the search API key must be entered again after uninstalling.
+
+Earlier version notes below describe previous implementations and test history.
+
 Native Java Android Views/Canvas, MediaPlayer playback, foreground downloads, MediaSession controls and a 10-band DynamicsProcessing equalizer. Android 9+ / ARM64. No account or embedded player.
 
 ## Version 0.4
@@ -62,5 +84,15 @@ The server is a hidden local process; restart with `../stem-server/start-server.
 
 ## Test-data issue
 
-VisualChecks left its sample library on the connected phone despite reporting a pass. The original list has not been recovered. Do not run fixture-based checks on personal data without a durable backup. See the [root README](../README.md) for current status.
+VisualChecks left its sample library on the connected phone despite reporting a pass. The library was subsequently restored from the supplied CSV. Do not run fixture-based checks on personal data without a durable backup. See the [root README](../README.md) for current status.
 
+
+Playback update: EQ now includes 0–12 dB boost with limiting; Previous restarts or returns through playback history within five seconds; finished tracks can resume via the seeker; Repeat updates in place; queue handles support drag reordering; crossfades use native equal-power VolumeShaper envelopes. See the root README for behavior.
+
+Verified on Infinix X663 on 2026-10-25: PlaybackChecks passed boost DSP gain, in-place Repeat updates, seeking after completion, previous/restart behavior, queue ordering, native crossfade overlap, and continued playback at handoff. Queue ordering was tested programmatically; drag gestures and audible transition quality still need user evaluation. The 438-entry library was compared exactly with its pre-test snapshot after restoration.
+
+Queue sheet update: compact artwork/title/artist rows in a bottom-aligned panel. Drag the three-line handle on the right directly to reorder; neighbouring rows animate and the list scrolls near its edges. Order commits on release; cancelling preserves it. Hold a song row to remove it. QueueSheetChecks verifies drag preview, commit, and cancellation with preference backup/restore.
+
+Verified on Infinix X663 on 2026-11-04: LibraryChecks passed favourite filtering and serialization, playlist creation/deduplication/reload, stable track IDs, sorting and shuffle membership, the ten-track preparation window for a longer playlist, outgoing-only fade without overlap, repeat-all cycling, repeat-one, repeat-off, and seeking after completion. The fresh installation was restored from the 438-song local backup, comparing title, artist, source and kind for every entry. Final visual inspection was limited by the phone lock screen.
+
+Verified on Infinix X663 on 2026-11-06: QueueEditChecks passed removal without refill, reorder/shuffle without refill, replenishment on playback advancement, Clear queue without interrupting current playback, persisted empty upcoming/backlog, and stopping after the current song. The user's 438-song library, playlists, and saved queue matched their pre-test snapshot exactly after restoration.

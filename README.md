@@ -1,5 +1,42 @@
 # Afterglow
 
+
+## Version 0.5.1 — queue editing
+
+Removing a queued song now leaves its slot empty. Reordering, shuffling, and library edits do not automatically pull another song from the playlist backlog. Playback advancement still prepares the next portion of a long playlist.
+
+**Clear queue** in the queue sheet clears both upcoming songs and the deferred playlist backlog, cancels preparation for removed queue items, and releases the prepared next player. It keeps the current song playing and preserves the library, favourites, playlists and cached audio. Repeat-all turns off so the cleared queue cannot rebuild itself; repeat-one is unchanged.
+
+
+## Version 0.5 — library collections and normal transitions
+
+- **Favourites:** use a song's menu to add/remove a favourite, then open the Favourites filter.
+- **Sort:** added/playlist order, title A–Z or Z–A, artist A–Z, or shuffled order. Sorting changes the visible list without changing the currently playing song.
+- **Play list / Shuffle play:** play the current library, favourite, playlist, or search-filtered view. Only the next ten songs enter the download queue; longer lists refill it as playback advances. Queue also has a Shuffle queue action.
+- **Playlists:** create named playlists, select songs from the library, add individual songs from their menu, rename, edit membership, play/shuffle, or delete a playlist. Deleting a playlist keeps its songs and audio. Stable track IDs retain membership when online titles resolve to audio URLs.
+- **Repeat:** tap to cycle Off → All → One → Off. All cycles the current playback queue/list, including the currently playing song; One loops only the current song.
+- **Transitions:** crossfade/gapless overlap is removed. The outgoing song fades over its final three seconds (shorter for short songs); the next song starts after completion at normal volume. Downloads that are not ready can still cause a wait.
+- Favourites, playlists, repeat mode, sorting and pending playback order are saved on the phone.
+
+Install over an existing copy to retain app data. Uninstalling removes private settings, cached audio and encrypted keys. A previously backed-up library can be restored, but the search API key must be entered again after uninstalling.
+
+Earlier version notes below describe previous implementations and test history.
+
+
+## Version 0.5 — library collections and normal transitions
+
+- **Favourites:** use a song's menu to add/remove a favourite, then open the Favourites filter.
+- **Sort:** added/playlist order, title A–Z or Z–A, artist A–Z, or shuffled order. Sorting changes the visible list without changing the currently playing song.
+- **Play list / Shuffle play:** play the current library, favourite, playlist, or search-filtered view. Only the next ten songs enter the download queue; longer lists refill it as playback advances. Queue also has a Shuffle queue action.
+- **Playlists:** create named playlists, select songs from the library, add individual songs from their menu, rename, edit membership, play/shuffle, or delete a playlist. Deleting a playlist keeps its songs and audio. Stable track IDs retain membership when online titles resolve to audio URLs.
+- **Repeat:** tap to cycle Off → All → One → Off. All cycles the current playback queue/list, including the currently playing song; One loops only the current song.
+- **Transitions:** crossfade/gapless overlap is removed. The outgoing song fades over its final three seconds (shorter for short songs); the next song starts after completion at normal volume. Downloads that are not ready can still cause a wait.
+- Favourites, playlists, repeat mode, sorting and pending playback order are saved on the phone.
+
+Install over an existing copy to retain app data. Uninstalling removes private settings, cached audio and encrypted keys. A previously exported/backed-up library can be restored, but the search API key must be entered again after uninstalling.
+
+Earlier version notes below describe the previous implementations and test history.
+
 An Android music player combining a Spotify-inspired interface with classic animated music visualizations. The app uses native Android screens and audio playback, with no Afterglow account or sign-in required.
 
 The current app is in **[`afterglow-android/`](afterglow-android/README.md)**. The `afterglow/` directory contains the earlier web prototype; it is not required to run the Android app.
@@ -153,8 +190,21 @@ From `afterglow-android`, the current runners are:
 ./test-device.ps1 -Runner VisualChecks
 ```
 
-StemChecks requires the running server. QueueDownloadChecks requires network access. **VisualChecks left sample entries such as `Library song 78` in the personal library despite reporting a pass. The original list has not been recovered.** Avoid running these fixture-based tests on personal data without a durable backup. Cached audio has not been removed as part of investigating this issue.
+StemChecks requires the running server. QueueDownloadChecks requires network access. **VisualChecks left sample entries such as `Library song 78` in the personal library despite reporting a pass. The list was subsequently restored from the user-provided CSV.** Avoid running these fixture-based tests on personal data without a durable backup. Cached audio has not been removed as part of investigating this issue.
 
-The test runner now backs up player preferences to device-private files/pre-test-player.xml before instrumentation and restores them afterward. It refuses to overwrite an outstanding backup. This safeguard passed a syntax check but has not yet been device-tested.
+The test runner now backs up player preferences to device-private files/pre-test-player.xml before instrumentation and restores them afterward. It refuses to overwrite an outstanding backup. The safeguard was subsequently exercised in device tests; the 438-entry library matched its pre-test snapshot exactly after restoration.
 
 
+
+## Playback controls update — 2026-10-25
+
+- EQ now includes a saved 0–12 dB volume boost for quiet recordings. Peak limiting remains enabled while boost is above zero.
+- The now-playing Previous button restarts the current song after five seconds; within the first five seconds it returns to the last played song when available. Notification and media-session Previous use the same behavior.
+- Seeking after natural completion restarts playback from the chosen position. Dragging the seeker no longer competes with periodic progress updates; seeking is committed on release.
+- Hold the queue's Reorder handle and drag onto another queued song to change its position. Remove remains a separate action.
+- Repeat updates its label without rebuilding the page or restarting the visualization.
+- Prepared-track crossfades use Android VolumeShaper equal-power envelopes in the audio engine, replacing UI-thread volume steps. Handoff retains the shared DSP session. Perceptual transition quality still needs listening checks on the target output device.
+
+The personal song library was restored from the supplied CSV after the earlier visualization-test issue. Subsequent tests use a durable preference backup and restore; never discard an outstanding test backup before checking it.
+
+Queue sheet update: compact artwork/title/artist rows in a bottom-aligned panel. Drag the three-line handle on the right directly to reorder; neighbouring rows animate and the list scrolls near its edges. Order commits on release; cancelling preserves it. Hold a song row to remove it. QueueSheetChecks verifies drag preview, commit, and cancellation with preference backup/restore.
