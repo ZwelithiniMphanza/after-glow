@@ -1,0 +1,92 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - android-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install Android SDK packages where build.ps1 expects them
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdkManager = Join-Path $env:ANDROID_HOME 'cmdline-tools/latest/bin/sdkmanager.bat'
+          if (-not (Test-Path -LiteralPath $sdkManager)) {
+            throw "SDK manager was not found at $sdkManager"
+          }
+          $sdkTarget = Join-Path $env:LOCALAPPDATA 'Android/Sdk'
+          New-Item -ItemType Directory -Force -Path $sdkTarget | Out-Null
+          (1..100 | ForEach-Object { 'y' }) | & $sdkManager "--sdk_root=$sdkTarget" --licenses
+          if ($LASTEXITCODE -ne 0) { throw 'SDK license acceptance failed' }
+          & $sdkManager "--sdk_root=$sdkTarget" 'platforms;android-36' 'build-tools;36.0.0'
+          if ($LASTEXITCODE -ne 0) { throw 'SDK package installation failed' }
+
+      - name: Restore the existing development signing key
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_KEY_BASE64)) {
+            throw 'Add the ANDROID_DEBUG_KEYSTORE_BASE64 repository secret first.'
+          }
+          $keyDir = Join-Path $env:GITHUB_WORKSPACE 'afterglow-android/.local'
+          New-Item -ItemType Directory -Force -Path $keyDir | Out-Null
+          [IO.File]::WriteAllBytes(
+            (Join-Path $keyDir 'debug.keystore'),
+            [Convert]::FromBase64String($env:SIGNING_KEY_BASE64)
+          )
+
+      - name: Prepare native audio dependencies
+        run: '& ./afterglow-android/prepare-audio-engine.ps1'
+
+      - name: Build and verify APK signature
+        run: '& ./afterglow-android/build.ps1'
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: afterglow-apk-${{ github.run_number }}
+          path: afterglow-android/build/afterglow-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Remove temporary signing key
+        if: always()
+        run: |
+          $keyFile = Join-Path $env:GITHUB_WORKSPACE 'afterglow-android/.local/debug.keystore'
+          if (Test-Path -LiteralPath $keyFile) {
+            Remove-Item -LiteralPath $keyFile -Force
+          }

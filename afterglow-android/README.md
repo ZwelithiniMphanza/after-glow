@@ -1,5 +1,18 @@
 # Afterglow native Android
 
+## November 2026 playback and discovery improvements
+
+- Tap a queued song row to play it. The handle still reorders; long-press removes.
+- The now-playing card has a favourites toggle. Library Sort includes **Cached / local ready first**.
+- **Recommendations** in Listen uses a lightweight artist-affinity ranking from the library, favourites and current track. It searches metadata using your saved YouTube API key; it is not a neural recommendation model. Suggestions do not join the library or download until **Add to queue** is selected. The 10-track queue limit applies.
+- Playback checkpoints the selected track and position every five seconds and when paused. Notification Play can restore that position after the playback service loses its player; a live player continues from its existing position.
+- Interrupted downloads retain partial files and fragment state. Requeue or play the track to retry. Resume depends on the source supporting byte ranges/fragments and the same format remaining available; Android cache eviction can remove partials. Separate format filenames prevent mixing different encodings.
+- yt-dlp uses `--continue --part`, five retries and two concurrent fragments. Parallelism applies to DASH/HLS fragments, not ordinary single HTTP audio streams, and cannot guarantee faster slow connections. See the [official yt-dlp options](https://github.com/yt-dlp/yt-dlp#download-options).
+- Completed music retains its 3 GiB limit. Inactive partials are pruned on download start to 300 MiB and seven days; an active download can temporarily add up to the 150 MiB track limit. Removing a song deletes its partials; Clear cache removes inactive, unprotected partials too.
+
+Validation: `ImprovementChecks` covers queue row playback, favourites, ready-first sorting, notification resume after releasing the player, recommendation seed side effects, and partial retention/expiry. It does not simulate a real telephone call or guarantee resumption against every remote host. Device test runner backs up and restores player preferences.
+
+
 
 ## Version 0.5.1 — queue editing
 
