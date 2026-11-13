@@ -2,6 +2,8 @@ package com.afterglow.player;
 import android.app.*;import android.content.*;import android.media.*;import android.media.audiofx.*;import android.media.session.*;import android.net.Uri;import android.os.*;import org.json.*;import java.util.*;
 public class PlaybackService extends Service {
  public static PlaybackService instance; public final LibraryCollections collections=new LibraryCollections(); public final ArrayList<Track> backlog=new ArrayList<>(); public boolean repeatAll=false; public final ArrayList<Track> queue=new ArrayList<>();public int index=0; public String error="";public boolean ready=false,repeat=false,eqEnabled=true,limit=true;public float boost=0; boolean ended=false; final ArrayList<Track> history=new ArrayList<>(); VolumeShaper fadeOut,fadeIn; public float preamp=-6,balance=0;public final float[] gains=new float[10];public final float[] cutoffs={44,88,177,354,707,1414,2828,5657,11314,22000};
+ int restorePosition=-1;long lastCheckpoint;
+ void checkpoint(){if(ready&&player!=null)prefs.edit().putString("resumeTrack",current().id).putInt("resumePosition",ended?0:position()).apply();}
  MediaPlayer player;DynamicsProcessing dsp; MediaSession session;AudioManager manager;AudioFocusRequest focus;boolean resumeOnFocus=false;public String dspStatus="Play a local track to activate processing"; android.content.SharedPreferences prefs;
  final Handler main=new Handler();final java.util.concurrent.ExecutorService resolver=java.util.concurrent.Executors.newSingleThreadExecutor();
  final Set<Track> resolving=new HashSet<>(),resolveFailed=new HashSet<>();final Set<String> failedDownloads=new HashSet<>();
@@ -15,7 +17,8 @@ public class PlaybackService extends Service {
  public Track current(){return queue.isEmpty()?emptyTrack:queue.get(Math.max(0,Math.min(index,queue.size()-1)));} public boolean playing(){try{return ready&&player!=null&&player.isPlaying();}catch(Exception e){return false;}}public int position(){try{return ready?player.getCurrentPosition():0;}catch(Exception e){return 0;}} public int duration(){try{return ready?player.getDuration():0;}catch(Exception e){return 0;}} public int audioSession(){return player!=null&&ready?player.getAudioSessionId():0;}
  public void save(){try{JSONArray a=new JSONArray();for(Track t:queue)a.put(t.json());JSONArray next=new JSONArray();for(Track t:upcoming)next.put(queue.indexOf(t));JSONArray rest=new JSONArray();for(Track t:backlog)rest.put(queue.indexOf(t));prefs.edit().putString("playlists",collections.json()).putBoolean("repeat",repeat).putBoolean("repeatAll",repeatAll).putString("backlog",rest.toString()).putString("queue",a.toString()).putString("upcoming",next.toString()).putInt("index",index).apply();}catch(Exception ignored){}}
  public void setSearchKey(String key){searchKey=key==null?"":key;KeyStore.save(this,searchKey);resolveFailed.clear();refreshUpcoming();}
- public void play(int idx){
+ public void play(int idx){restorePosition=-1;playInternal(idx);}
+ private void playInternal(int idx){
   if(idx<0||idx>=queue.size())return;
   Track target=queue.get(idx);deletedCacheIds.remove(target.uri);wantPlayback=true;prefetchSuspended=false;error="";
   failedDownloads.remove(target.uri);resolveFailed.remove(target);
@@ -28,7 +31,7 @@ public class PlaybackService extends Service {
   startService(new Intent(this,PlaybackService.class));startForeground(1,notification());
   try{
    player=createPlayer(target,0);final MediaPlayer loading=player;
-   loading.setOnPreparedListener(p->{if(p!=player)return;ready=true;setupDSP();if(wantPlayback)resume();save();refreshUpcoming();});
+   loading.setOnPreparedListener(p->{if(p!=player)return;ready=true;setupDSP();if(restorePosition>0){int offset=Math.min(restorePosition,Math.max(0,duration()-1));restorePosition=-1;p.setOnSeekCompleteListener(done->{done.setOnSeekCompleteListener(null);if(done==player&&wantPlayback)resume();});p.seekTo(offset);}else if(wantPlayback)resume();save();refreshUpcoming();});
    loading.prepareAsync();
   }catch(Exception e){error="Cannot open this file. Re-add it or download it again.";releasePlayer();wantPlayback=false;stopForeground(STOP_FOREGROUND_REMOVE);}
   update();
@@ -132,7 +135,7 @@ public class PlaybackService extends Service {
  public boolean enqueue(Track track,boolean first){
   if(!queue.contains(track))return false;deletedCacheIds.remove(track.uri);
   if(!upcoming.contains(track)&&upcoming.size()>=QUEUE_LIMIT){error="Queue is full (10 tracks). Remove a queued track first.";return false;}
-  backlog.remove(track);upcoming.remove(track);if(first)upcoming.add(0,track);else upcoming.add(track);prefetchSuspended=false;queueChanged();return true;
+  failedDownloads.remove(track.uri);resolveFailed.remove(track);backlog.remove(track);upcoming.remove(track);if(first)upcoming.add(0,track);else upcoming.add(track);prefetchSuspended=false;queueChanged();return true;
  }
  public void moveTrack(Track t,int destination){int from=upcoming.indexOf(t);if(from<0)return;upcoming.remove(from);upcoming.add(Math.max(0,Math.min(destination,upcoming.size())),t);queueChanged();}
  public void playNext(Track t){enqueue(t,true);}
@@ -150,7 +153,7 @@ public class PlaybackService extends Service {
  void volume(MediaPlayer p,float gain){p.setVolume(gain*(balance>0?1-balance:1),gain*(balance<0?1+balance:1));}
  // Only the outgoing player fades. The prepared player remains stopped until completion.
  final Runnable crossfadeTick=new Runnable(){public void run(){
-  try{if(wantPlayback&&playing()){int remaining=duration()-position();int window=Math.min(3000,duration()/3);
+  try{if(playing()&&android.os.SystemClock.elapsedRealtime()-lastCheckpoint>5000){checkpoint();lastCheckpoint=android.os.SystemClock.elapsedRealtime();}if(wantPlayback&&playing()){int remaining=duration()-position();int window=Math.min(3000,duration()/3);
    if(fadeOut==null&&remaining>0&&remaining<=window){fadeOut=player.createVolumeShaper(new VolumeShaper.Configuration.Builder().setDuration(Math.max(1,remaining)).setCurve(new float[]{0,.5f,1},new float[]{1,.5f,0}).setInterpolatorType(VolumeShaper.Configuration.INTERPOLATOR_TYPE_LINEAR).build());fadeOut.apply(VolumeShaper.Operation.PLAY);}
   }}catch(Exception e){android.util.Log.w("AfterglowFade","End fade unavailable",e);}if(!destroyed)main.postDelayed(this,100);
  }};
@@ -165,13 +168,13 @@ public class PlaybackService extends Service {
  public void resume(){
   wantPlayback=true;prefetchSuspended=false;
   if(waitingTrack!=null){int target=queue.indexOf(waitingTrack);if(target>=0){play(target);return;}}
-  if(player==null){play(index);return;}if(!ready)return;
+  if(player==null){restorePosition=current().id.equals(prefs.getString("resumeTrack",""))?prefs.getInt("resumePosition",0):0;playInternal(index);return;}if(!ready)return;
   startService(new Intent(this,PlaybackService.class));startForeground(1,notification());
   if(manager.requestAudioFocus(focus)==AudioManager.AUDIOFOCUS_REQUEST_GRANTED){player.start();update();refreshUpcoming();}
   else{error="Another app currently has audio focus.";wantPlayback=false;stopForeground(STOP_FOREGROUND_REMOVE);}
  }
  public void pause(boolean abandon){
-  wantPlayback=false;if(playing())player.pause();resetFade();releaseNext();
+  wantPlayback=false;if(playing())player.pause();checkpoint();resetFade();releaseNext();
   if(abandon){resumeOnFocus=false;manager.abandonAudioFocusRequest(focus);}
   update();if(ready)stopForeground(STOP_FOREGROUND_DETACH);
  }
@@ -186,5 +189,5 @@ public class PlaybackService extends Service {
  Notification notification(){return new Notification.Builder(this,"playback").setSmallIcon(com.afterglow.player.R.drawable.icon).setContentTitle(current().title).setContentText(current().artist).setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE)).setVisibility(Notification.VISIBILITY_PUBLIC).setOngoing(playing()).addAction(android.R.drawable.ic_media_previous,"Previous",action("prev")).addAction(playing()?android.R.drawable.ic_media_pause:android.R.drawable.ic_media_play,playing()?"Pause":"Play",action(playing()?"pause":"play")).addAction(android.R.drawable.ic_media_next,"Next",action("next")).addAction(android.R.drawable.ic_menu_close_clear_cancel,"Stop",action("stop")).setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0,1,2)).build();}
  void update(){if(session==null)return;session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,current().title).putString(MediaMetadata.METADATA_KEY_ARTIST,current().artist).putLong(MediaMetadata.METADATA_KEY_DURATION,duration()).build());session.setPlaybackState(new PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY|PlaybackState.ACTION_PAUSE|PlaybackState.ACTION_PLAY_PAUSE|PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS|PlaybackState.ACTION_SEEK_TO|PlaybackState.ACTION_STOP).setState(playing()?PlaybackState.STATE_PLAYING:PlaybackState.STATE_PAUSED,position(),playing()?1:0).build());if(player!=null)getSystemService(NotificationManager.class).notify(1,notification());}
  void releasePlayer(){resetFade();releaseNext();if(dsp!=null){dsp.release();dsp=null;}if(player!=null){player.release();player=null;}ready=false;}
- public void onDestroy(){destroyed=true;resolver.shutdownNow();main.removeCallbacksAndMessages(null);protectedCacheIds=Collections.emptySet();save();releasePlayer();manager.abandonAudioFocusRequest(focus);session.release();unregisterReceiver(noisy);getSystemService(NotificationManager.class).cancel(1);instance=null;super.onDestroy();}
+ public void onDestroy(){checkpoint();destroyed=true;resolver.shutdownNow();main.removeCallbacksAndMessages(null);protectedCacheIds=Collections.emptySet();save();releasePlayer();manager.abandonAudioFocusRequest(focus);session.release();unregisterReceiver(noisy);getSystemService(NotificationManager.class).cancel(1);instance=null;super.onDestroy();}
 }
